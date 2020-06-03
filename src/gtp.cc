@@ -244,7 +244,10 @@ std::string GTPConnector::OnUndoCommand() {
  * Returns Lizzie information.
  */
 std::string GTPConnector::OnLzAnalyzeCommand() {
-  lizzie_interval_ = (args_.size() >= 1 ? stoi(args_[0]) * 10 : 100);  // millisec
+  int index = 0;
+
+  if (args_[0] == "B" || args_[0] == "W") index += 1; // ignore player
+  lizzie_interval_ = (args_.size() >= 1 ? stoi(args_[index]) * 10 : 100);  // millisec
   if (!tree_.has_eval_worker()) {
     AllocateGPU();  // Allocates memory.
     b_.Init();
