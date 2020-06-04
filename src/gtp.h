@@ -25,6 +25,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <deque>
 
 #include "./board.h"
 #include "./search.h"
@@ -82,29 +83,25 @@ class GTPConnector {
   }
 
   void Start() {
-    // Starts communication with the GTP protocol.
     bool running = true;
+
+    // Thread that monitors GTP commands during pondering.
+    std::thread read_th([this]() {
+      std::string command;
+      while (true) {
+        ReceiveGTPCommand(&command);
+
+        std::lock_guard<std::mutex> lock(command_queue_mutex_);
+        command_queue_.push_back(command);
+      }
+    });
+
+    // Starts communication with the GTP protocol.
     while (running) {
-      std::string command("");
       bool start_pondering = Options["use_ponder"].get_bool() && go_ponder_ &&
                              b_.move_before() != kPass &&
                              (tree_.left_time() > 10.0 || tree_.byoyomi() != 0);
       if (start_pondering) AllocateGPU();
-
-      // Thread that monitors GTP commands during pondering.
-      std::thread read_th([this, &command, start_pondering]() {
-        while (command == "") {
-          ReceiveGTPCommand(&command);
-          if (command != "" && start_pondering) {
-            tree_.StopToThink();
-            break;
-          }
-          // Interval of checking command strings.
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 1 msec
-        }
-        // Waits until SearchTree class stops thinking.
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // 10 msec
-      });
 
       // Goes pondering until the next command is received.
       if (start_pondering) {
@@ -119,7 +116,20 @@ class GTPConnector {
         tree_.Search(b_, time_limit, &winning_rate, false, true, lizzie_interval_);
       }
 
-      read_th.join();
+      std::string command;
+      {
+        std::lock_guard<std::mutex> lock(command_queue_mutex_);
+        command = command_queue_.front();
+        command_queue_.pop_front();
+      }
+
+      if (command != "" && start_pondering) {
+        tree_.StopToThink();
+
+        // Waits until SearchTree class stops thinking.
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // 10 msec
+      }
+
       tree_.PrepareToThink();
 
       // Processes GTP command.
@@ -345,6 +355,8 @@ class GTPConnector {
   Board b_;
   SearchTree tree_;
   Color c_engine_;
+  std::deque<std::string> command_queue_;
+  std::mutex command_queue_mutex_;
   bool go_ponder_;
   bool save_log_;
   SgfData sgf_;
