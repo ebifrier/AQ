@@ -140,10 +140,14 @@ class GTPConnector {
     std::string response = "";
     success_handle_ = true;
 
+    if (lizzie_interval_ > 0) {
+      SendGTPCommand("\n");
+      StopLizzieAnalysis();
+    }
+
     if (FindString(command, "protocol_version")) {
       response = "2";
     } else if (type == "name") {
-      StopLizzieAnalysis();
       response = "AQ";
     } else if (type == "version") {
       response = Options["lizzie"] ? "0.16" : std::string(kVersion);
@@ -215,7 +219,9 @@ class GTPConnector {
 
     std::string head_str = success_handle_ ? "=" : "?";
     if (command_id >= 0) head_str += std::to_string(command_id);
-    SendGTPCommand("%s %s\n\n", head_str.c_str(), response.c_str());
+    std::string newline_str = lizzie_interval_ < 0 ? "\n" : "";
+    SendGTPCommand("%s %s%s\n", head_str.c_str(), response.c_str(),
+                   newline_str.c_str());
 
     return (type != "quit");
   }
