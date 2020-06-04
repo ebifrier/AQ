@@ -32,5 +32,5 @@ COPY --from=build-env /AQ/config.txt /AQ/config.txt
 COPY --from=build-env /AQ/prob /AQ/prob
 COPY --from=build-env /AQ/data/AQ/engine /AQ/engine
 
-CMD ./AQ/AQ --lizzie
+CMD ./AQ --lizzie
 
